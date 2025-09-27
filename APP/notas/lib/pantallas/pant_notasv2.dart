@@ -1,6 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:notas/DDBB/db.dart';
 import 'package:intl/intl.dart';
+import 'package:notas/api/localstorage.dart';
+import 'package:notas/api/pendiente.dart';
+import 'package:notas/api/peticiones.dart';
+import 'package:notas/services/conetInternet.dart';
 
 class PantNotasv2 extends StatefulWidget {
   final Map<String, dynamic>? nota; //null = nueva, con datos = editar
@@ -14,6 +18,7 @@ class PantNotasv2 extends StatefulWidget {
 class _PantNotasv2 extends State<PantNotasv2> {
   final TextEditingController _nota = TextEditingController();
   final TextEditingController _fecha = TextEditingController();
+  final TextEditingController _hora = TextEditingController();
   String _selcate = 'seleccionar';
   String _msj = '';
   DateTime? _fechatime;
@@ -29,11 +34,12 @@ class _PantNotasv2 extends State<PantNotasv2> {
   void initState() {
     super.initState();
 
-    // 👇 Si es edición, rellenamos los campos con la nota existente
+    //Si es edición, rellenamos los campos con la nota existente
     if (widget.nota != null) {
-      _selcate = widget.nota!['categoria'];
+      _selcate = widget.nota!['tipo'];
       _nota.text = widget.nota!['nota'];
       _fecha.text = widget.nota!['fecha'];
+      _hora.text = widget.nota!['hora'];
       _fechatime = DateTime.tryParse(widget.nota!['fecha']);
     }
   }
@@ -55,15 +61,65 @@ class _PantNotasv2 extends State<PantNotasv2> {
   }
 
   void _guardarnota() async {
+    final token = await usardatausuario();
     final categoria = _selcate;
     final fecha = _fecha.text;
     final nota = _nota.text;
+    final hora = _hora.text;
+    print(token['token']);
+    final data = {
+      "tipo": categoria,
+      "fecha": fecha,
+      "hora": hora,
+      "nota": nota,
+      "id_usuario": token['id'],
+      "sincronizado": "0",
+    };
 
+    print(data);
     try {
       if (widget.nota == null) {
-        await DBHelper.insertNota(categoria, fecha, nota);
+        if (await conexioninternet()) {
+          //insertar cuando tiene internet - api
+          final tk = token['token'];
+          print('enviar data a bbdd');
+          final rpt = await crearevento(data, tk);
+          print(rpt);
+        } else {
+          //insert cuando no tiene internt -sqlite
+          pendientesCrear.add(data);
+          await DBHelper.insertNota(
+            "0",
+            categoria,
+            fecha,
+            hora,
+            nota,
+            token['id'],
+            "3",
+          );
+        }
       } else {
-        await DBHelper.updateNota(widget.nota!['id'], categoria, fecha, nota);
+        if (await conexioninternet()) {
+          //actualizar cuando tiene internet - api
+          final tk = token['token'];
+          actualizarevento(
+            data,
+            widget.nota!['id'],
+            tk,
+          ); //cuando devuelve --pensar en poner el modal actualizado con exito
+        } else {
+          //actualizar cuando no tiene internt -sqlite
+          pendientesActualizar.add(data);
+          await DBHelper.updateNota(
+            widget.nota!['id'],
+            categoria,
+            fecha,
+            hora,
+            nota,
+            token['id'],
+            "3",
+          );
+        }
       }
 
       if (mounted) Navigator.pop(context, true); // cerrar modal
@@ -111,6 +167,14 @@ class _PantNotasv2 extends State<PantNotasv2> {
             ),
             const SizedBox(height: 16),
             TextFormField(
+              controller: _hora,
+              decoration: const InputDecoration(
+                border: OutlineInputBorder(),
+                labelText: 'Hora',
+              ),
+            ),
+            const SizedBox(height: 16),
+            TextFormField(
               controller: _nota,
               decoration: const InputDecoration(
                 border: OutlineInputBorder(),
@@ -120,6 +184,10 @@ class _PantNotasv2 extends State<PantNotasv2> {
             const SizedBox(height: 16),
             ElevatedButton(
               onPressed: _guardarnota,
+              style: ElevatedButton.styleFrom(
+                padding: EdgeInsets.all(8),
+                backgroundColor: Colors.blue,
+              ),
               child: Text(widget.nota == null ? "Guardar" : "Actualizar"),
             ),
           ],
@@ -127,4 +195,8 @@ class _PantNotasv2 extends State<PantNotasv2> {
       ),
     );
   }
+}
+
+extension on Future<Map<String, dynamic>> {
+  operator [](String other) {}
 }

@@ -1,6 +1,11 @@
 import 'package:flutter/material.dart';
 import 'package:notas/DDBB/db.dart';
+import 'package:notas/api/localstorage.dart';
+import 'package:notas/api/pendiente.dart';
+import 'package:notas/api/peticiones.dart';
 import 'package:notas/pantallas/sesion.dart';
+import 'package:notas/services/conetInternet.dart';
+import 'package:notas/services/notificaciones.dart';
 
 class PantInises extends StatefulWidget {
   const PantInises({super.key});
@@ -12,6 +17,8 @@ class PantInises extends StatefulWidget {
 class _IniciaSesionState extends State<PantInises> {
   final TextEditingController _user = TextEditingController();
   final TextEditingController _contra = TextEditingController();
+
+  final _formkey = GlobalKey<FormState>();
 
   String _msj = "";
 
@@ -48,10 +55,44 @@ class _IniciaSesionState extends State<PantInises> {
     final usuario = _user.text;
     final clave = _contra.text;
 
-    final resul = await DBHelper.login(usuario, clave);
+    final data = {"usuario": usuario, "password": clave};
+    Map<String, dynamic> resul = {};
+
+    if (await conexioninternet()) {
+      //con internet
+      final resul = await loginusuario(data);
+
+      final token = resul?['token'];
+      final id = resul?['id'];
+      final user = resul?['user'];
+
+      print('sdsd $resul');
+      print('sdsd $token');
+      print('sdsd $id');
+      print('sdsd $user');
+
+      //token de firebase
+      //final tokenfcm = await firebasenotificaciones();
+
+      //guardar en local storage el token
+      guardardatausuario(token, id, user, "jk");
+      Sesion.usuario = resul?['user'];
+      //enviarpendientes(token);
+    } else {
+      //sin internet
+      final resul = await DBHelper.login(usuario, clave);
+      //guardar en local storage
+      final token = null;
+      guardardatausuario(
+        token,
+        resul?['id'],
+        resul?['usuario'],
+        resul?['tokenfcm'],
+      );
+      Sesion.usuario = resul?['usuario'];
+    }
 
     if (resul != null) {
-      Sesion.usuario = resul['user'];
       setState(() {
         _msj = 'login exitosos';
       });
@@ -66,56 +107,72 @@ class _IniciaSesionState extends State<PantInises> {
     }
   }
 
+  void _registrar() {
+    Navigator.pushNamed(context, "/registrate");
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       body: Center(
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            const Text(
-              'Inicia Sesion',
-              key: ValueKey('titinisesi'),
-              style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold),
-            ),
-
-            const SizedBox(height: 20),
-
-            TextFormField(
-              key: const ValueKey('user'),
-              decoration: const InputDecoration(
-                border: OutlineInputBorder(),
-                labelText: 'Usuario',
+        child: Form(
+          key: _formkey,
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const Text(
+                'Inicia Sesion',
+                key: ValueKey('titinisesi'),
+                style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold),
               ),
-              validator: _validarnombre,
-            ),
 
-            const SizedBox(height: 20),
+              const SizedBox(height: 20),
 
-            TextFormField(
-              key: const ValueKey('contra'),
-              controller: _contra,
-              decoration: const InputDecoration(
-                border: OutlineInputBorder(),
-                labelText: 'Contraseña',
+              TextFormField(
+                key: const ValueKey('user'),
+                controller: _user,
+                decoration: const InputDecoration(
+                  border: OutlineInputBorder(),
+                  labelText: 'Usuario',
+                ),
+                validator: _validarnombre,
               ),
-              obscureText: true,
-              maxLength: 6,
-              validator: _validarcontrsena,
-            ),
 
-            Text(
-              _msj,
-              key: const ValueKey('msjconf'),
-              style: const TextStyle(color: Colors.red),
-            ),
+              const SizedBox(height: 20),
 
-            ElevatedButton(
-              key: const ValueKey('btningresar'),
-              onPressed: _login,
-              child: const Text('Ingresar'),
-            ),
-          ],
+              TextFormField(
+                key: const ValueKey('contra'),
+                controller: _contra,
+                decoration: const InputDecoration(
+                  border: OutlineInputBorder(),
+                  labelText: 'Contraseña',
+                ),
+                obscureText: true,
+                maxLength: 6,
+                validator: _validarcontrsena,
+              ),
+              TextButton(
+                onPressed: _registrar,
+                child: Text("si no estas registrardo registrate"),
+              ),
+
+              Text(
+                _msj,
+                key: const ValueKey('msjconf'),
+                style: const TextStyle(color: Colors.red),
+              ),
+
+              ElevatedButton(
+                key: const ValueKey('btningresar'),
+                onPressed: () {
+                  if (_formkey.currentState!.validate()) {
+                    _login();
+                  }
+                },
+                child: const Text('Ingresar'),
+              ),
+            ],
+          ),
         ),
       ),
     );

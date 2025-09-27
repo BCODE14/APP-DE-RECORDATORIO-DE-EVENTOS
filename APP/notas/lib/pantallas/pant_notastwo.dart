@@ -45,12 +45,20 @@ class _PantNotastwoState extends State<PantNotastwo> {
     final nota = _nota.text;
 
     try {
-      await DBHelper.insertNota(categoria, fecha, nota);
+      //await DBHelper.insertNota(categoria, fecha, nota);
     } catch (e) {
       setState(() {
         _msj = 'Error al insertar: $e';
       });
     }
+  }
+
+  String? _validarnota(String? not) {
+    if (not == null || not.isEmpty) {
+      return 'Escribe un evento de recordatorio';
+    }
+
+    return null;
   }
 
   @override
@@ -114,6 +122,7 @@ class _PantNotastwoState extends State<PantNotastwo> {
                 border: OutlineInputBorder(),
                 labelText: 'Escribe nota',
               ),
+              validator: _validarnota,
             ),
 
             const SizedBox(height: 16),

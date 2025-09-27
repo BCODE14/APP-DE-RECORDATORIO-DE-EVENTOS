@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "1049223218035",
+    "project_id": "appeventos-d740e",
+    "storage_bucket": "appeventos-d740e.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:1049223218035:android:56fd3240d50e7e428cfb06",
+        "android_client_info": {
+          "package_name": "com.example.notas"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyDRmUc_fifo7Jr6qfuxV1GAx82cTriCn4Q"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

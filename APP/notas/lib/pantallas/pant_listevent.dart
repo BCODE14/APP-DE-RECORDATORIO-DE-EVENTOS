@@ -1,5 +1,9 @@
+import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:flutter/material.dart';
 import 'package:notas/DDBB/db.dart';
+import 'package:notas/api/localstorage.dart';
+import 'package:notas/api/pendiente.dart';
+import 'package:notas/app.dart';
 import 'package:notas/pantallas/pant_calennotas.dart';
 import 'package:notas/pantallas/pant_notastwo.dart';
 import 'package:notas/pantallas/pant_perfil.dart';
@@ -23,6 +27,31 @@ class _PantListEventState extends State<PantListevent> {
   void initState() {
     super.initState();
     _CargarEventoHoy();
+    //funcion sincronizacion con api y sqlite
+    _sincronizar();
+
+    //notificaciones
+    FirebaseMessaging.onMessage.listen((RemoteMessage message) {
+      final notification = message.notification;
+
+      if (notification != null) {
+        final ctx = navigatorKey.currentContext; // <- contexto global actual
+        if (ctx != null) {
+          ScaffoldMessenger.of(ctx).showSnackBar(
+            SnackBar(content: Text(notification.title ?? "Sin título")),
+          );
+        }
+      }
+    });
+
+    FirebaseMessaging.onMessageOpenedApp.listen((RemoteMessage message) {
+      navigatorKey.currentState?.pushNamed('/Iniciar sesion');
+    });
+  }
+
+  Future<void> _sincronizar() async {
+    final rs = await usardatausuario();
+    await sincronizaciondata(rs['token']);
   }
 
   Future<void> _CargarEventoHoy() async {
@@ -43,7 +72,7 @@ class _PantListEventState extends State<PantListevent> {
     final resul = await DBHelper.getNotas();
     setState(() {
       _eventos = resul.where((x) {
-        final sinfiltipo = _filcat == null || x['categoria'] == _filcat;
+        final sinfiltipo = _filcat == null || x['tipo'] == _filcat;
         final sinfilnom =
             _filnom == null ||
             x['nota'].toString().toLowerCase().contains(_filnom!.toLowerCase());
@@ -94,6 +123,7 @@ class _PantListEventState extends State<PantListevent> {
               children: [
                 Expanded(
                   child: DropdownButton<String>(
+                    key: ValueKey('btnsel'),
                     isExpanded: true,
                     hint: const Text("Seleccionar"),
                     value: _filcat,
@@ -114,6 +144,7 @@ class _PantListEventState extends State<PantListevent> {
                 const SizedBox(width: 8),
                 Expanded(
                   child: TextField(
+                    key: ValueKey('btnfecha'),
                     decoration: const InputDecoration(labelText: "Fecha"),
                     onTap: () async {
                       FocusScope.of(context).requestFocus(FocusNode());
@@ -130,12 +161,14 @@ class _PantListEventState extends State<PantListevent> {
                 const SizedBox(width: 8),
                 Expanded(
                   child: TextField(
+                    key: ValueKey('btnnombre'),
                     decoration: const InputDecoration(labelText: "Nombre"),
                     onChanged: (val) => _filnom = val,
                   ),
                 ),
                 const SizedBox(width: 8),
                 ElevatedButton(
+                  key: ValueKey('btnfiltrar'),
                   onPressed: _BuscarEventos,
                   child: const Text("Filtrar"),
                 ),
@@ -176,12 +209,13 @@ class _PantListEventState extends State<PantListevent> {
                                 ),
                               ],
                             ),
-                            title: Text("Tipo: ${e['categoria']}"),
-                            subtitle: Text(e['nota']),
+                            title: Text("Tipo: ${e['tipo']}"),
+                            subtitle: Text(e['hora'] + e['nota']),
                             trailing: Row(
                               mainAxisSize: MainAxisSize.min,
                               children: [
                                 IconButton(
+                                  key: ValueKey('btneditar'),
                                   onPressed: () {
                                     showDialog(
                                       context: context,
@@ -197,8 +231,10 @@ class _PantListEventState extends State<PantListevent> {
                                   icon: const Icon(Icons.edit),
                                 ),
                                 IconButton(
+                                  key: ValueKey('btneliminar'),
                                   onPressed: () async {
-                                    await DBHelper.eliminarNota(e['id']);
+                                    eliminarevent(e['id']);
+                                    //await DBHelper.eliminarNota(e['id']);
                                     _CargarEventoHoy();
                                   },
                                   icon: const Icon(Icons.delete),
@@ -215,6 +251,7 @@ class _PantListEventState extends State<PantListevent> {
       ),
 
       floatingActionButton: FloatingActionButton(
+        key: ValueKey('btncrearnota'),
         onPressed: () {
           showDialog(
             context: context,
@@ -222,7 +259,7 @@ class _PantListEventState extends State<PantListevent> {
               child: SizedBox(
                 width: double.infinity,
                 height: 400,
-                child: const PantNotastwo(),
+                child: const PantNotasv2(),
               ),
             ),
           );
@@ -240,6 +277,7 @@ class _PantListEventState extends State<PantListevent> {
           mainAxisAlignment: MainAxisAlignment.spaceAround,
           children: [
             IconButton(
+              key: ValueKey('btnhome'),
               onPressed: () {
                 Navigator.of(context).push(
                   MaterialPageRoute(
@@ -251,6 +289,7 @@ class _PantListEventState extends State<PantListevent> {
               icon: const Icon(Icons.home),
             ),
             IconButton(
+              key: ValueKey('btnperfil'),
               onPressed: () {
                 Navigator.of(context).push(
                   MaterialPageRoute(
@@ -263,6 +302,7 @@ class _PantListEventState extends State<PantListevent> {
             ),
             const SizedBox(width: 40),
             IconButton(
+              key: ValueKey('btncalendar'),
               onPressed: () {
                 Navigator.of(context).push(
                   MaterialPageRoute(
@@ -274,6 +314,7 @@ class _PantListEventState extends State<PantListevent> {
               icon: const Icon(Icons.calendar_today),
             ),
             IconButton(
+              key: ValueKey('btnsalir'),
               onPressed: () {
                 Sesion.usuario = null;
                 Navigator.pushNamedAndRemoveUntil(

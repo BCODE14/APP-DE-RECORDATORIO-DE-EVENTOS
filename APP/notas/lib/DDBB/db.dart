@@ -1,5 +1,6 @@
 import 'package:sqflite/sqflite.dart';
 import 'package:path/path.dart';
+import 'package:bcrypt/bcrypt.dart';
 
 class DBHelper {
   static Future<Database> initDB() async {
@@ -12,18 +13,21 @@ class DBHelper {
       onCreate: (db, version) async {
         await db.execute('''
           CREATE TABLE usuarios(
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            user TEXT,
-            pass TEXT
+            id integer
+            usuario TEXT,
+            password TEXT
           )
 
           CREATE TABLE notas (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            categoria TEXT,
+            id integer
+            tipo TEXT,
             fecha TEXT,
+            hora TEXT,
             nota TEXT,
-            eliminado INTEGER DEFAULT 0
+            id_usuario text,
+            sincronizado integer
           )
+
         ''');
       },
     );
@@ -31,62 +35,85 @@ class DBHelper {
 
   static Future<int> insertUser(String user, String pass) async {
     final db = await initDB();
-    await db.insert('usuarios', {"user": user, "pass": pass});
+    await db.insert('usuarios', {"usuario": user, "password": pass});
     return 1;
   }
 
   static Future<Map<String, dynamic>?> login(String user, String pass) async {
     final db = await initDB();
+    final passencript = BCrypt.hashpw(pass, BCrypt.gensalt());
     final res = await db.query(
       'usuarios',
-      where: "user = ? AND pass = ?",
-      whereArgs: [user, pass],
+      where: "usuario = ? AND password = ?",
+      whereArgs: [user, passencript],
     );
     if (res.isNotEmpty) return res.first;
     return null;
   }
 
   static Future<int> insertNota(
+    String id,
     String categoria,
     String fecha,
+    String hora,
     String nota,
+    String iduser,
+    String sincro,
   ) async {
     final db = await initDB();
     return await db.insert('notas', {
-      "categoria": categoria,
+      "id": id,
+      "tipo": categoria,
       "fecha": fecha,
+      "hora": hora,
       "nota": nota,
-      "eliminado": 0,
+      "id_usuario": iduser,
+      "sincronizado": sincro,
     });
   }
 
   static Future<List<Map<String, dynamic>>> getNotas() async {
     final db = await initDB();
-    return await db.query('notas', where: "eliminado = ?", whereArgs: [0]);
+    return await db.query('notas', where: "sincronizado = ?", whereArgs: [1]);
   }
 
   static Future<int> updateNota(
     int id,
     String categoria,
     String fecha,
+    String hora,
     String nota,
+    String idus,
+    String sincro,
   ) async {
     final db = await initDB();
     return await db.update(
       'notas',
-      {"categoria": categoria, "fecha": fecha, "nota": nota},
+      {
+        "tipo": categoria,
+        "fecha": fecha,
+        "hora": hora,
+        "nota": nota,
+        "id_usuario": idus,
+        "sincronizado": sincro,
+      },
       where: "id = ?",
       whereArgs: [id],
     );
   }
 
-  static Future<int> eliminarNota(int id) async {
+  static Future<int> eliminarNota(String id) async {
     final db = await initDB();
     return await db.update(
       'notas',
-      {"eliminado": 1},
+      {"sincronizado": 1},
       where: "id = ?",
-      whereArgs: [id],
+      whereArgs: [int.parse(id)],
     );
+  }
+
+  static Future<void> eliminarnotatrue() async {
+    final db = await initDB();
+    await db.delete('notas', where: "sincronizado= ?", whereArgs: [3]);
   }
 }
